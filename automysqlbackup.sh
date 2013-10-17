@@ -262,6 +262,8 @@ fi
 # Change Log
 #=====================================================================
 #
+# VER 2.5.1-01 - (2010-07-06)
+#     - Fixed pathname bug item #3025849 (by Johannes Kolter)
 # VER 2.5.1 - (2010-07-04)
 #     - Added support for default and optional config file (by Johannes Kolter)
 #     - Rotating after backup was successful whith find(1) (by Johannes Kolter)
@@ -275,9 +277,9 @@ fi
 #     - Fixed bug ID: 1438565
 #       Moved IO redirection to a place before decicions are made and actions are taken.
 #       (inspired by Derk Bernhardt)
-#     - Fixed bug ID: 3000316 (reported by Sascha Feldhorst)
-#     - Fixed bug ID: 1529458 (reported by Natalie ( njwood ))
-#     - Fixed bug ID: 1548919 (reported by Piotr Kuczynski)
+#     - Fixed bug ID: #3000316 (reported by Sascha Feldhorst)
+#     - Fixed bug ID: #1529458 (reported by Natalie ( njwood ))
+#     - Fixed bug ID: #1548919 (reported by Piotr Kuczynski)
 # VER 2.5 - (2006-01-15)
 #		Added support for setting MAXIMUM_PACKET_SIZE and SOCKET parameters (suggested by Yvo van Doorn)
 # VER 2.4 - (2006-01-23)
@@ -374,24 +376,25 @@ fi
 #
 # Full pathname to binaries to avoid problems with aliases and builtins etc.
 #
-AWK="/usr/bin/gawk"
-LOGGER="/usr/bin/logger"
-ECHO="/bin/echo"
-CAT="/bin/cat"
-BASENAME="/usr/bin/basename"
-DATEC="/bin/date"
-DU="/usr/bin/du"
-EXPR="/usr/bin/expr"
-FIND="/usr/bin/find"
-RM="/bin/rm"
-MYSQL="/usr/bin/mysql"
-MYSQLDUMP="/usr/bin/mysqldump"
-GZIP="/bin/gzip"
-BZIP2="/bin/bzip2"
-CP="/bin/cp"
-HOSTNAMEC="/bin/hostname"
-SED="/bin/sed"
-GREP="/bin/grep"
+WHICH="`which which`"
+AWK="`${WHICH} gawk`"
+LOGGER="`${WHICH} logger`"
+ECHO="`${WHICH} echo`"
+CAT="`${WHICH} cat`"
+BASENAME="`${WHICH} basename`"
+DATEC="`${WHICH} date`"
+DU="`${WHICH} du`"
+EXPR="`${WHICH} expr`"
+FIND="`${WHICH} find`"
+RM="`${WHICH} rm`"
+MYSQL="`${WHICH} mysql`"
+MYSQLDUMP="`${WHICH} mysqldump`"
+GZIP="`${WHICH} gzip`"
+BZIP2="`${WHICH} bzip2`"
+CP="`${WHICH} cp`"
+HOSTNAMEC="`${WHICH} hostname`"
+SED="`${WHICH} sed`"
+GREP="`${WHICH} grep`"
 
 function get_debian_pw() {
 	if [ -r /etc/mysql/debian.cnf ]; then
