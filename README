@@ -63,15 +63,19 @@ find /var/backup/db* -type d -exec chmod 700 {} \;
 
 2. Save it to a suitable location or copy it to your /etc/cron.daily folder. 
 
-3. Make it executable, i.e. chmod +x /etc/cron.daily/automysqlbackup.
+3. Make it executable, i.e. chmod +x /etc/cron.daily/runmysqlbackup.
 
 
 The backup can be run from the command line simply by running the following command.
 
-automysqlbackup /etc/automysqlbackup/myserver.conf
+  automysqlbackup /etc/automysqlbackup/myserver.conf
 
 If you don't supply an argument for automysqlbackup, the default configuration
-in the program automysqlbackup will be used unless a global file CONFIGFILE exists.
+in the program automysqlbackup will be used unless a global file
+
+  CONFIG_configfile="/etc/automysqlbackup/automysqlbackup.conf"
+
+exists.
 
 You can just copy the supplied automysqlbackup.conf as many times as you want
 and use for separate configurations, i.e. for example different mysql servers.

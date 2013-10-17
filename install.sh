@@ -23,7 +23,7 @@ upgrade_config_file () {
     temp=$(mktemp /tmp/tmp.XXXXXX)
     (( $? != 0 )) && return 1
     activateIO "$temp"
-    echo "#version=3.0_beta4"
+    echo "#version=3.0_rc2"
     echo "# Uncomment to change the default values (shown after =)"
     echo "# WARNING:"
     echo "# This is not true for UMASK, CONFIG_prebackup and CONFIG_postbackup!!!"
@@ -58,14 +58,14 @@ upgrade_config_file () {
       echo "#CONFIG_mysql_dump_host='localhost'"
     fi
     echo ""
-	echo "# \"Friendly\" host name of MySQL server to be used in email log"
-	echo "# if unset or empty (default) will use CONFIG_mysql_dump_host instead"
-	if isSet CONFIG_mysql_dump_host_friendly; then
-	  printf '%s=%q\n' CONFIG_mysql_dump_host_friendly "${CONFIG_mysql_dump_host_friendly-}"
-	else
-	  echo "#CONFIG_mysql_dump_host_friendly=''"
-	fi
-	echo ""
+    echo "# \"Friendly\" host name of MySQL server to be used in email log"
+    echo "# if unset or empty (default) will use CONFIG_mysql_dump_host instead"
+    if isSet CONFIG_mysql_dump_host_friendly; then
+      printf '%s=%q\n' CONFIG_mysql_dump_host_friendly "${CONFIG_mysql_dump_host_friendly-}"
+    else
+      echo "#CONFIG_mysql_dump_host_friendly=''"
+    fi
+    echo ""
     echo "# Backup directory location e.g /backups"
     if isSet BACKUPDIR; then
       printf '%s=%q\n' CONFIG_backup_dir "${BACKUPDIR-}"
@@ -73,6 +73,22 @@ upgrade_config_file () {
       echo "#CONFIG_backup_dir='/var/backup/db'"
     fi
     echo ""
+    echo "# This is practically a moot point, since there is a fallback to the compression"
+    echo "# functions without multicore support in the case that the multicore versions aren't"
+    echo "# present in the system. Of course, if you have the latter installed, but don't want"
+    echo "# to use them, just choose no here."
+    echo "# pigz -> gzip"
+    echo "# pbzip2 -> bzip2"
+    echo "#CONFIG_multicore='yes'"
+    echo ""
+    echo "# Number of threads (= occupied cores) you want to use. You should - for the sake"
+    echo "# of the stability of your system - not choose more than (#number of cores - 1)."
+    echo "# Especially if the script is run in background by cron and the rest of your system"
+    echo "# has already heavy load, setting this too high, might crash your system. Assuming"
+    echo "# all systems have at least some sort of HyperThreading, the default is 2 threads."
+    echo "# If you wish to let pigz and pbzip2 autodetect or use their standards, set it to"
+    echo "# 'auto'."
+    echo "#CONFIG_multicore_threads=2"
     echo ""
     echo "# Databases to backup"
     echo ""
@@ -388,9 +404,9 @@ parse_config_file () {
 echo "### Checking archive files for existence, readability and integrity."
 echo
 
-precheck_files=( automysqlbackup efbe268439c870748362a315bccc80ad
-automysqlbackup.conf 86fcbe7fdcb519601fd238e60edea3c4
-README 30e8daf3182647241ab32bd9d8e6a24b
+precheck_files=( automysqlbackup f2b2649bc5dfee59538c99e6405ef9c9
+automysqlbackup.conf d525efa3da15ce9fea96893e5a8ce6d5
+README b17740fcd3a5f8579b907a42249a83cd
 LICENSE 39bba7d2cf0ba1036f2a6e2be52fe3f0
 )
 

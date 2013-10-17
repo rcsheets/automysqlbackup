@@ -2,6 +2,20 @@
 # Change Log
 #=====================================================================
 #
+# version 3.0_rc4 - (2011-11-24)
+#     - Removing mkfifo commands, thereby improving portability.
+#     - Fixing not working table exclude feature for wildcards.
+# version 3.0_rc3 - (2011-11-24)
+#     - Changed code to make it more portable, thereby resolving FreeBSD issue.
+# version 3.0_rc2 - (2011-11-21)
+#     - Added multicore support for bzip and gzip2.
+#     - Fixed error in README file.
+# version 3.0_rc1 - (2011-11-15)
+#     - Added differential backup method.
+#     - Added user-friendly method to recreate full backups out of differential ones.
+#     - Changed paramters, with which the script can be called, to make the new
+#       methods available.
+#     - Fixed some bugs.
 # version 3.0_beta2 - (2011-08-21)
 #     - Added possibility to backup local files. 
 #     - Added full schema backup.
