@@ -16,31 +16,54 @@
 #
 shopt -s extglob
 
-# flags
+# BEGIN _flags
 let "filename_flag_encrypted=0x01"
 let "filename_flag_gz=0x02"
 let "filename_flag_bz2=0x04"
 let "filename_flag_diff=0x08"
+# END _flags
 
-##############################################################################################################
-# Functions
+# BEGIN _errors_notifications
+let "E=0x00" # no errors
+let "N=0x00" # no notifications
+
+let "E_dbdump_failed=0x01"
+let "E_backup_local_failed=0x02"
+let "E_mkdir_basedir_failed=0x04"
+let "E_mkdir_subdirs_failed=0x08"
+let "E_perm_basedir=0x10"
+let "E_enc_cleartext_delfailed=0x20"
+let "E_enc_failed=0x40"
+let "E_db_empty=0x80"
+let "E_create_pipe_failed=0x100"
+let "E_missing_deps=0x200"
+let "E_no_basedir=0x400"
+let "E_config_backupdir_not_writable=0x800"
+let "E_dump_status_failed=0x1000"
+let "E_dump_fullschema_failed=0x2000"
+
+let "N_config_file_missing=0x01"
+let "N_arg_conffile_parsed=0x02"
+let "N_arg_conffile_unreadable=0x04"
+let "N_too_many_args=0x08"
+let "N_latest_cleanup_failed=0x10"
+let "N_backup_local_nofiles=0x20"
+# END _errors_notifications
+
+# BEGIN _functions
 
 # @info:	Default configuration options.
 # @deps:	(none)
 load_default_config() {
   CONFIG_configfile="/etc/automysqlbackup/automysqlbackup.conf"
   CONFIG_backup_dir='/var/backup/db'
-
   CONFIG_multicore='yes'
   CONFIG_multicore_threads=2
-
   CONFIG_do_monthly="01"
   CONFIG_do_weekly="5"
-
   CONFIG_rotation_daily=6
   CONFIG_rotation_weekly=35
   CONFIG_rotation_monthly=150
-
   CONFIG_mysql_dump_port=3306
   CONFIG_mysql_dump_usessl='yes'
   CONFIG_mysql_dump_username='root'
@@ -60,30 +83,18 @@ load_default_config() {
   CONFIG_mysql_dump_full_schema='yes'
   CONFIG_mysql_dump_dbstatus='yes'
   CONFIG_mysql_dump_differential='no'
-
   CONFIG_backup_local_files=()
-
   CONFIG_db_names=()
   CONFIG_db_month_names=()
   CONFIG_db_exclude=( 'information_schema' )
   CONFIG_table_exclude=()
-
   CONFIG_mailcontent='stdout'
   CONFIG_mail_maxattsize=4000
   CONFIG_mail_splitandtar='yes'
   CONFIG_mail_use_uuencoded_attachments='no'
   CONFIG_mail_address='root'
-
   CONFIG_encrypt='no'
   CONFIG_encrypt_password='password0123'
-
-  # dry-run, i.e. show what you are gonna do without actually doing it
-  # inactive: =0 or commented out
-  # active: uncommented AND =1
-  #CONFIG_dryrun=1
-  # for developers only, note: uninitialized variable is false, (( $uninitialized_var )) = false, (( 1 )) = true, does not work with [ ] or [[ ]] tests
-  #CONFIG_debug=1
-
 }
 
 # @return:	true, if variable is set; else false
@@ -183,56 +194,10 @@ mail_cleanup () {
 # @params:	#month	#year
 # @deps:	(none)
 days_of_month() {
-  m="$1"
-  y="$2"
-  a=$(( 30+(m+m/8)%2 ))
-  if (( m==2 )); then
-    a=$((a-2))
-  fi
-  if (( m==2 && y%4==0 && ( y<100 || y%100>0 || y%400==0) )); then
-    a=$((a+1))
-  fi
+  m="$1"; y="$2"; a=$(( 30+(m+m/8)%2 ))
+  (( m==2 )) && a=$((a-2))
+  (( m==2 && y%4==0 && ( y<100 || y%100>0 || y%400==0) )) && a=$((a+1))
   printf '%d' $a
-}
-
-# @info:	Converts a floating point number to an integer, i.e. removing all decimal places.
-# @args:	floating point number
-# @deps:	(none)
-floor () {
-  echo "$1/1" | bc
-}
-
-# @info:	Converts a floating point number to an integer, i.e. removing all decimal places, and adds 1.
-# @args:	floating point number
-# @deps:	(none)
-ceil  () {
-  echo "define ceil (x) {if (x<0) {return x/1} \
-         else {if (scale(x)==0) {return x} \
-         else {return x/1 + 1 }}} ; ceil($1)" | bc;
-}
-
-# @info:	Calculate the logarithm of a floating point number with base 2.
-# @args:	floating point number
-# @deps:	(none)
-log_base2 () {
-  echo "l($1)/l(2)" | bc -l
-}
-
-# @info:	Generate a random password
-# @params:	length
-rand_string() {
-  local i tmp size max rand array
-  array=({A..Z} {a..z} {0..9})
-
-  # $RANDOM % (i+1) is biased because of the limited range of $RANDOM
-  # Compensate by using a range which is a multiple of the array size.
-  size=${#array[*]}
-  max=$(echo "$size/32768" | bc -l)
-
-  for ((i=0;$i<$1;i++)); do
-	rand=$(floor $(echo "$RANDOM * $max" | bc -l))
-	printf '%s' ${arr[rand]}
-  done
 }
 
 # @info:	Checks if a folder is writable by creating a temporary file in it and removing it afterwards.
@@ -240,8 +205,7 @@ rand_string() {
 # @return:	returns false if creation of temporary file failed or it can't be removed afterwards; else true
 # @deps:	(none)
 chk_folder_writable () {
-  local temp
-  temp="$(mktemp "$1"/tmp.XXXXXX)"
+  local temp; temp="$(mktemp "$1"/tmp.XXXXXX)"
   if (( $? == 0 )); then
     rm "${temp}" || return 1
     return 0
@@ -249,7 +213,6 @@ chk_folder_writable () {
     return 1
   fi
 }
-
 
 # @info:	bzip2 compression
 bzip2_compression() {
@@ -284,41 +247,9 @@ gzip_compression() {
 # @return:	(none)
 # @deps:	(none)
 remove_datetimeinfo () {
-  mv "$1" "$(echo "$1" | sed -re 's/_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}m_(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|[0-9]{1,2})//g')"
+  mv "$1" "$(echo "$1" | sed -re 's/_[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}h[0-9]{2}m_(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|[0-9]{1,2})//g')"
 }
 export -f remove_datetimeinfo
-
-# @info:	Put associated texts inside the error handler function, so that the used variables are
-# 			set as late as possible. This is important when dealing with occurences of the error_handler
-# 			before all config files are processed - the texts include variables set in the config files.
-# @args:	(none)
-# @deps:	(none)
-load_errors_notifications() {
-  let "E=0x00" # no errors
-  let "N=0x00" # no notifications
-
-  let "E_dbdump_failed=0x01"
-  let "E_backup_local_failed=0x02"
-  let "E_mkdir_basedir_failed=0x04"
-  let "E_mkdir_subdirs_failed=0x08"
-  let "E_perm_basedir=0x10"
-  let "E_enc_cleartext_delfailed=0x20"
-  let "E_enc_failed=0x40"
-  let "E_db_empty=0x80"
-  let "E_create_pipe_failed=0x100"
-  let "E_missing_deps=0x200"
-  let "E_no_basedir=0x400"
-  let "E_config_backupdir_not_writable=0x800"
-  let "E_dump_status_failed=0x1000"
-  let "E_dump_fullschema_failed=0x2000"
-
-  let "N_config_file_missing=0x01"
-  let "N_arg_conffile_parsed=0x02"
-  let "N_arg_conffile_unreadable=0x04"
-  let "N_too_many_args=0x08"
-  let "N_latest_cleanup_failed=0x10"
-  let "N_backup_local_nofiles=0x20"
-}
 
 # @info:	Set time and date variables.
 # @args:	(none)
@@ -331,10 +262,6 @@ set_datetime_vars() {
   date_day_of_month=`date +%e | sed -e 's/^ //'`				# Date of the Month e.g. 27
   date_month=`date +%B`						# Month e.g January
   date_weekno=`date +%V | sed -e 's/^0//'`	# Week Number e.g 37
-  # the following two lines are not POSIX compatible, since the -d option of date is not portable
-  #date_lastday_of_last_month=`date -d "$(date -d "$(date +%Y-%m-%d) -1 month" +%Y-%m-01) +1 month -1 day" +%e`
-  #date_lastday_of_this_month=`date -d "$(date -d "$(date +%Y-%m-%d) +1 month" +%Y-%m-01) -1 day" +%e`
-  # solving problem by resorting to mathematics and the definition of the Gregorian reform calendar system
   year=`date +%Y`
   month=`date +%m | sed -e 's/^0//'`
   date_lastday_of_last_month=$(days_of_month $(( $month==1 ? 12 : $month-1 )) $(( $month==1 ? ($year-1):$year )) )
@@ -349,7 +276,7 @@ files_postprocessing () {
 	local flags
 	let "flags=0x00"
 	let "flags_files_postprocessing_success_encrypt=0x01"
-	
+
 	# -> CONFIG_encrypt
 	[[ "${CONFIG_encrypt}" = "yes" && "${CONFIG_encrypt_password}" ]] && {
 	  if (( $CONFIG_dryrun )); then
@@ -433,17 +360,29 @@ error_handler () {
     [0x2000]=''
   )
 
-  local temp
-  while (( $N > 0 )); do
-    temp=$((2**$(floor $(log_base2 $N))))
-    echo "Note:" ${notify[$temp]}
-    let "N-=$temp"
+  local n
+  local e
+
+  n=$((${#notify[@]}-1))
+  while (( N > 0 )); do
+    e=$((2**n))
+    if (( N&e )); then
+      echo "Note:" ${notify[e]}
+      let "N-=e"
+    fi
+    ((n--))
   done
-  if (( $E > 0 )); then
-    while (( $E > 0 )); do
-      temp=$((2**$(floor $(log_base2 $E))))
-      echo "Error:" ${errors[$temp]}
-      let "E-=$temp"
+  unset n;
+
+  n=$((${#errors[@]}-1))
+  if (( E > 0 )); then
+    while (( E > 0 )); do
+      e=$((2**n))
+      if (( E&e )); then
+	echo "Error:" ${errors[e]}
+	let "E-=e"
+      fi
+      ((n--))
     done
     exit 1
   else
@@ -769,7 +708,6 @@ process_dbs() {
 		cfname="$(mktemp "${fname%.sql}_"XXXXXXXX".sql${suffix}")"
 		uid="${cfname%.@(diff|sql)*}"
 		uid="${uid:-8:8}"
-		#while cfname="${fname%.sql}_$(rand_string 8).sql${suffix}"; [[ -e "$cfname" ]]; do :; done
 		case "${CONFIG_mysql_dump_compression}" in
 		'gzip')
 		  mysqldump --user="${CONFIG_mysql_dump_username}" --password="${CONFIG_mysql_dump_password}" --host="${CONFIG_mysql_dump_host}" "${opt[@]}" "$@" | gzip_compression > "$cfname";
@@ -787,7 +725,6 @@ process_dbs() {
 		cfname="$(mktemp "${fname%.sql}_"XXXXXXXX".diff${suffix}")"
 		uid="${cfname%.@(diff|sql)*}"
 		uid=${uid:-8:8}
-		#while uid=$(rand_string 8); cfname="${fname%.sql}_${uid}.diff${suffix}"; [[ -e "$cfname" ]]; do :; done
 		echo "Creating differential backup to ${manifest_entry[0]}:"
 		case "${CONFIG_mysql_dump_compression}" in
 		'gzip')
@@ -1061,7 +998,7 @@ cleanup_latest ()  {
 check_dependencies () {
     echo
     echo "# Testing for installed programs"
-    dependencies=( 'mysql' 'mysqldump' 'bc' )
+    dependencies=( 'mysql' 'mysqldump' )
 
 	if [[ "x$CONFIG_multicore" = 'xyes' ]]; then
 
@@ -1688,6 +1625,11 @@ extended_select() {
 	
 }
 
+# END _functions
+
+
+# BEGIN _methods
+
 # @info:	Backup method
 method_backup () {
 	manifest_entries_corrupted=()
@@ -1699,7 +1641,6 @@ method_backup () {
 	# BEGIN __STARTUP
 
 	load_default_config
-	load_errors_notifications
 
 	trap mail_cleanup EXIT SIGHUP SIGINT SIGQUIT SIGTERM
 	if [[ -r "${CONFIG_configfile}" ]]; then source "${CONFIG_configfile}"; echo "Parsed config file \"${CONFIG_configfile}\""; else let "N |= $N_config_file_missing"; fi; echo
@@ -2068,7 +2009,6 @@ method_list_manifest_entries () {
 	# BEGIN __STARTUP
 
 	load_default_config
-	load_errors_notifications
 
 	if [[ -r "${CONFIG_configfile}" ]]; then source "${CONFIG_configfile}"; echo "Parsed config file \"${CONFIG_configfile}\""; else let "N |= $N_config_file_missing"; fi; echo
 	if (( $opt_flag_config_file )); then if [[ -r "${opt_config_file}" ]]; then source "${opt_config_file}"; let "N |= $N_arg_conffile_parsed"; else let "N |= $N_arg_conffile_unreadable"; fi; else let "N |= $N_too_many_args"; fi
@@ -2260,6 +2200,11 @@ method_diff_to_full() {
 	for i in "${to_rm[@]}"; do rm "$i"; done
 }
 
+# END _methods
+
+
+# BEGIN __main
+
 NO_ARGS=0
 E_OPTERROR=85
 
@@ -2306,3 +2251,5 @@ if (( $# == 1 )) && (( ${#opt_flags[@]} == 0 )); then
 elif (( $# == 0 )) && (( ${#opt_flags[@]} == 0 )); then
   method_backup
 fi
+
+# END __main
