@@ -404,7 +404,7 @@ parse_config_file () {
 echo "### Checking archive files for existence, readability and integrity."
 echo
 
-precheck_files=( automysqlbackup f2b2649bc5dfee59538c99e6405ef9c9
+precheck_files=( automysqlbackup b451278c558a65623c4f6cd952243390
 automysqlbackup.conf d525efa3da15ce9fea96893e5a8ce6d5
 README b17740fcd3a5f8579b907a42249a83cd
 LICENSE 39bba7d2cf0ba1036f2a6e2be52fe3f0

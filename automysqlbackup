@@ -128,7 +128,7 @@ mail_cleanup () {
 					  mutt -s "${errornote} MySQL Backup Log and SQL Files for ${CONFIG_mysql_dump_host_friendly:-$CONFIG_mysql_dump_host} - ${datetimestamp}" -a "${backupfiles[@]}" -- ${CONFIG_mail_address} < "$log_file"
 					fi
 			    elif (( ${CONFIG_mail_maxattsize} <= ${attsize} )) && [[ "x$CONFIG_mail_splitandtar" = "xyes" ]]; then
-					if sPWD="$PWD"; cd "$CONFIG_backup_dir"/tmp && pax -wv "${backupfiles[@]}" | bzip2_compression | split -b ${CONFIG_mail_maxattsize} - mail_attachment_${datetimestamp}_ && cd "$sPWD"; then
+					if sPWD="$PWD"; cd "$CONFIG_backup_dir"/tmp && pax -wv "${backupfiles[@]}" | bzip2_compression | split -b $((CONFIG_mail_maxattsize*1000)) - mail_attachment_${datetimestamp}_ && cd "$sPWD"; then
 					  files=("$CONFIG_backup_dir"/tmp/mail_attachment_${datetimestamp}_*)
 					  echo -e "\n\nThe attachments have been split into multiple files.\nUse 'cat mail_attachment_2011-08-13_13h15m_* > mail_attachment_2011-08-13_13h15m.tar.bz2' to combine them and \
 							  'bunzip2 <mail_attachment_2011-08-13_13h15m.tar.bz2 | pax -rv' to extract the content."
