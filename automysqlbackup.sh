@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # MySQL Backup Script
-# VER. 2.4 - http://sourceforge.net/projects/automysqlbackup/
+# VER. 2.5 - http://sourceforge.net/projects/automysqlbackup/
 # Copyright (c) 2002-2003 wipe_out@lycos.co.uk
 #
 # This program is free software; you can redistribute it and/or modify
@@ -81,6 +81,12 @@ COMMCOMP=no
 
 # Additionally keep a copy of the most recent backup in a seperate directory.
 LATEST=no
+
+#  The maximum size of the buffer for client/server communication. e.g. 16MB (maximum is 1GB)
+MAX_ALLOWED_PACKET=
+
+#  For connections to localhost. Sometimes the Unix socket file must be specified.
+SOCKET=
 
 # Command to run before backups (uncomment to use)
 #PREBACKUP="/etc/mysql-backup-pre"
@@ -177,6 +183,13 @@ LATEST=no
 # LATEST is to store an additional copy of the latest backup to a standard
 # location so it can be downloaded bt thrid party scripts.
 #
+# If the DB's being backed up make use of large BLOB fields then you may need
+# to increase the MAX_ALLOWED_PACKET setting, for example 16MB..
+#
+# When connecting to localhost as the DB server (DBHOST=localhost) sometimes
+# the system can have issues locating the socket file.. This can now be set
+# using the SOCKET parameter.. An example may be SOCKET=/private/tmp/mysql.sock
+#
 # Use PREBACKUP and POSTBACKUP to specify Per and Post backup commands
 # or scripts to perform tasks either before or after the backup process.
 #
@@ -229,6 +242,8 @@ LATEST=no
 # Change Log
 #=====================================================================
 #
+# VER 2.5 - (2006-01-15)
+#		Added support for setting MAXIMUM_PACKET_SIZE and SOCKET parameters (suggested by Yvo van Doorn)
 # VER 2.4 - (2006-01-23)
 #    Fixed bug where weekly backups were not being rotated. (Fix by wolf02)
 #    Added hour an min to backup filename for the case where backups are taken multiple
@@ -327,7 +342,7 @@ DNOW=`date +%u`						# Day number of the week 1 to 7 where 1 represents Monday
 DOM=`date +%d`							# Date of the Month e.g. 27
 M=`date +%B`							# Month e.g January
 W=`date +%V`							# Week Number e.g 37
-VER=2.4									# Version Number
+VER=2.5									# Version Number
 LOGFILE=$BACKUPDIR/$DBHOST-`date +%N`.log		# Logfile Name
 LOGERR=$BACKUPDIR/ERRORS_$DBHOST-`date +%N`.log		# Logfile Name
 BACKUPFILES=""
@@ -337,6 +352,12 @@ OPT="--quote-names --opt"			# OPT string for use with mysqldump ( see man mysqld
 if [ "$COMMCOMP" = "yes" ];
 	then
 		OPT="$OPT --compress"
+	fi
+
+# Add --compress mysqldump option to $OPT
+if [ "$MAX_ALLOWED_PACKET" ];
+	then
+		OPT="$OPT --max_allowed_packet=$MAX_ALLOWED_PACKET"
 	fi
 
 # Create required directories
@@ -388,7 +409,7 @@ mysqldump --user=$USERNAME --password=$PASSWORD --host=$DBHOST $OPT $1 > $2
 return 0
 }
 
-# Compression function
+# Compression function plus latest copy
 SUFFIX=""
 compression () {
 if [ "$COMP" = "gzip" ]; then
@@ -437,6 +458,9 @@ fi
 # Hostname for LOG information
 if [ "$DBHOST" = "localhost" ]; then
 	HOST=`hostname`
+	if [ "$SOCKET" ]; then
+		OPT="$OPT --socket=$SOCKET"
+	fi
 else
 	HOST=$DBHOST
 fi
@@ -639,6 +663,7 @@ then
 else
 	if [ -s "$LOGERR" ]
 		then
+			cat "$LOGFILE"
 			echo
 			echo "###### WARNING ######"
 			echo "Errors reported during AutoMySQLBackup execution.. Backup failed"
