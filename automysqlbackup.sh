@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # MySQL Backup Script
-# VER. 2.3 - http://sourceforge.net/projects/automysqlbackup/
+# VER. 2.4 - http://sourceforge.net/projects/automysqlbackup/
 # Copyright (c) 2002-2003 wipe_out@lycos.co.uk
 #
 # This program is free software; you can redistribute it and/or modify
@@ -44,6 +44,7 @@ BACKUPDIR="/backups"
 # - log   : send only log file
 # - files : send log file and sql files as attachments (see docs)
 # - stdout : will simply output the log to the screen if run manually.
+# - quiet : Only send logs if an error occurs to the MAILADDR.
 MAILCONTENT="stdout"
 
 # Set the maximum allowed email size in k. (4000 = approx 5MB email [see docs])
@@ -78,6 +79,9 @@ COMP=gzip
 # Compress communications between backup server and MySQL server?
 COMMCOMP=no
 
+# Additionally keep a copy of the most recent backup in a seperate directory.
+LATEST=no
+
 # Command to run before backups (uncomment to use)
 #PREBACKUP="/etc/mysql-backup-pre"
 
@@ -111,8 +115,9 @@ COMMCOMP=no
 # email addresses in a space seperated list.
 # (If you set mail content to "log" you will require access to the "mail" program
 # on your server. If you set this to "files" you will have to have mutt installed
-# on your server. If you set it sto stdout it will log to the screen if run from 
-# the console or to the cron job owner if run through cron)
+# on your server. If you set it to "stdout" it will log to the screen if run from 
+# the console or to the cron job owner if run through cron. If you set it to "quiet"
+# logs will only be mailed if there are errors reported. )
 #
 # MAXATTSIZE sets the largest allowed email attachments total (all backup files) you
 # want the script to send. This is the size before it is encoded to be sent as an email
@@ -169,6 +174,9 @@ COMMCOMP=no
 # it is useful to save bandwidth when backing up a remote MySQL server over
 # the network. 
 #
+# LATEST is to store an additional copy of the latest backup to a standard
+# location so it can be downloaded bt thrid party scripts.
+#
 # Use PREBACKUP and POSTBACKUP to specify Per and Post backup commands
 # or scripts to perform tasks either before or after the backup process.
 #
@@ -221,6 +229,14 @@ COMMCOMP=no
 # Change Log
 #=====================================================================
 #
+# VER 2.4 - (2006-01-23)
+#    Fixed bug where weekly backups were not being rotated. (Fix by wolf02)
+#    Added hour an min to backup filename for the case where backups are taken multiple
+#    times in a day. NOTE This is not complete support for mutiple executions of the script
+#    in a single day.
+#    Added MAILCONTENT="quiet" option, see docs for details. (requested by snowsam)
+#    Updated path statment for compatibility with OSX.
+#    Added "LATEST" to additionally store the last backup to a standard location. (request by Grant29)
 # VER 2.3 - (2005-11-07)
 #    Better error handling and notification of errors (a long time coming)
 #    Compression on Backup server to MySQL server communications. 
@@ -304,14 +320,14 @@ COMMCOMP=no
 #=====================================================================
 #=====================================================================
 #=====================================================================
-PATH=/usr/local/bin:/usr/bin:/bin
-DATE=`date +%Y-%m-%d`				# Datestamp e.g 2002-09-21
+PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/mysql/bin 
+DATE=`date +%Y-%m-%d_%Hh%Mm`				# Datestamp e.g 2002-09-21
 DOW=`date +%A`							# Day of the week e.g. Monday
 DNOW=`date +%u`						# Day number of the week 1 to 7 where 1 represents Monday
 DOM=`date +%d`							# Date of the Month e.g. 27
 M=`date +%B`							# Month e.g January
 W=`date +%V`							# Week Number e.g 37
-VER=2.3									# Version Number
+VER=2.4									# Version Number
 LOGFILE=$BACKUPDIR/$DBHOST-`date +%N`.log		# Logfile Name
 LOGERR=$BACKUPDIR/ERRORS_$DBHOST-`date +%N`.log		# Logfile Name
 BACKUPFILES=""
@@ -344,6 +360,14 @@ if [ ! -e "$BACKUPDIR/monthly" ]	# Check Monthly Directory exists.
 	mkdir -p "$BACKUPDIR/monthly"
 fi
 
+if [ "$LATEST" = "yes" ]
+then
+	if [ ! -e "$BACKUPDIR/latest" ]	# Check Latest Directory exists.
+	then
+		mkdir -p "$BACKUPDIR/latest"
+	fi
+eval rm -fv "$BACKUPDIR/latest/*"
+fi
 
 # IO redirection for logging.
 touch $LOGFILE
@@ -380,6 +404,9 @@ elif [ "$COMP" = "bzip2" ]; then
 else
 	echo "No compression option set, check advanced settings"
 fi
+if [ "$LATEST" = "yes" ]; then
+	cp $1$SUFFIX "$BACKUPDIR/latest/"
+fi	
 return 0
 }
 
@@ -485,7 +512,7 @@ echo ======================================================================
 			else
 				REMW=`expr $W - 5`
 			fi
-		eval rm -fv "$BACKUPDIR/weekly/$DB/week.$REMW.*" 
+		eval rm -fv "$BACKUPDIR/weekly/$DB_week.$REMW.*" 
 		echo
 			dbdump "$DB" "$BACKUPDIR/weekly/$DB/${DB}_week.$W.$DATE.sql"
 			compression "$BACKUPDIR/weekly/$DB/${DB}_week.$W.$DATE.sql"
@@ -602,6 +629,13 @@ then
 		then
 			cat "$LOGERR" | mail -s "ERRORS REPORTED: MySQL Backup error Log for $HOST - $DATE" $MAILADDR
 	fi	
+elif [ "$MAILCONTENT" = "quiet" ]
+then
+	if [ -s "$LOGERR" ]
+		then
+			cat "$LOGERR" | mail -s "ERRORS REPORTED: MySQL Backup error Log for $HOST - $DATE" $MAILADDR
+			cat "$LOGFILE" | mail -s "MySQL Backup Log for $HOST - $DATE" $MAILADDR
+	fi
 else
 	if [ -s "$LOGERR" ]
 		then
